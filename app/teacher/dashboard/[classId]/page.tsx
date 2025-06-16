@@ -1,21 +1,74 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import TopicFlowBoard from '@/components/TopicFlow';
-
+import { useParams } from 'next/navigation';
 
 interface Topic {
-    id: number;
+    id: string;
     name: string;
     description: string;
-    subject_id: number;
+    subject_id: string;
     week: number;
 }
 
-export default function ClassDashboard({ params }: { params: { classId: string } }) {
+export default function ClassDashboard() {
     const [topics, setTopics] = useState<Topic[]>([]);
     const [weekTopics, setWeekTopics] = useState<{ [week: string]: Topic[] }>({});
+    const { classId } = useParams();
+    const [saveTrigger, setSaveTrigger] = useState(0);
+    const [classUUID, setClassUUID] = useState<string | null>(null);
+    const [search, setSearch] = useState('');
+
+    // Load timeline from Supabase on mount
+    useEffect(() => {
+        async function loadTimeline() {
+            const { data: classData, error: classError } = await supabase
+                .from('classes')
+                .select('id')
+                .eq('code', classId)
+                .single();
+
+            if (classError || !classData) {
+                console.error('Error retrieving class UUID:', classError);
+                return;
+            }
+
+            const classUUID = classData.id;
+            const { data, error } = await supabase
+                .from('class_timelines')
+                .select('timeline')
+                .eq('class_id', classUUID)
+                .single();
+            if (data && data.timeline) {
+                setWeekTopics(data.timeline);
+            }
+        }
+        loadTimeline();
+    }, [classId]);
+
+    // Save timeline to Supabase
+    const saveTimeline = useCallback(async () => {
+        const { data: classData, error: classError } = await supabase
+            .from('classes')
+            .select('id')
+            .eq('code', classId)
+            .single();
+
+        if (classError || !classData) {
+            console.error('Error retrieving class UUID:', classError);
+            return;
+        }
+
+        const classUUID = classData.id;
+        await supabase
+            .from('class_timelines')
+            .upsert([
+                { class_id: classUUID, timeline: weekTopics }
+            ]);
+        setSaveTrigger(t => t + 1); // Triggers TopicFlowBoard to save nodes/edges
+    }, [classId, weekTopics]);
 
     useEffect(() => {
         async function fetchTopics() {
@@ -63,14 +116,38 @@ export default function ClassDashboard({ params }: { params: { classId: string }
         });
     };
 
+    useEffect(() => {
+        async function fetchClassUUID() {
+            const { data, error } = await supabase
+                .from('classes')
+                .select('id')
+                .eq('code', classId)
+                .single();
+            if (data && data.id) setClassUUID(data.id);
+        }
+        fetchClassUUID();
+    }, [classId]);
+
+    // Filter topics based on search input
+    const filteredTopics = topics.filter(topic =>
+        topic.name.toLowerCase().includes(search.toLowerCase())
+    );
+
     return (
         <>
             <div className="flex h-screen p-4 space-x-4 bg-gray-100">
                 {/* Topics Sidebar */}
                 <div className="w-1/4 p-4 bg-white rounded shadow overflow-y-auto">
                     <h2 className="text-lg font-bold mb-2">Available Topics</h2>
+                    <input
+                        type="text"
+                        placeholder="Search topics..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        className="w-full mb-3 p-2 border rounded"
+                    />
                     <div id="topic-list" className="space-y-2">
-                        {topics.map((topic) => (
+                        {filteredTopics.map((topic) => (
                             <div
                                 key={topic.id}
                                 draggable
@@ -113,9 +190,21 @@ export default function ClassDashboard({ params }: { params: { classId: string }
                         ))}
                     </div>
 
+                    <button
+                        className="mb-4 px-4 py-2 bg-green-600 text-white rounded"
+                        onClick={saveTimeline}
+                    >
+                        Save Timeline & Flow
+                    </button>
 
                     {/* Topic Flow View */}
-                    <TopicFlowBoard topics={allDroppedTopics} />
+                    {classUUID && (
+                        <TopicFlowBoard
+                            topics={allDroppedTopics}
+                            classId={classUUID}
+                            saveTrigger={saveTrigger}
+                        />
+                    )}
                 </div>
 
             </div>
