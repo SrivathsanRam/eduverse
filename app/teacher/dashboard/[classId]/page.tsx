@@ -1,83 +1,125 @@
 'use client';
 
-import TopicFlow from '@/components/TopicFlow';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import TopicFlowBoard from '@/components/TopicFlow';
 
-export default function TopicTimeline() {
-  useEffect(() => {
-    const draggables = document.querySelectorAll('[draggable=true]');
-    const dropzones = document.querySelectorAll('.dropzone');
 
-    draggables.forEach((el) => {
-      el.addEventListener('dragstart', (e) => {
-        const dragEvent = e as DragEvent;
-        dragEvent.dataTransfer?.setData('text/plain', (e.target as HTMLElement).dataset.topic || '');
-      });
-    });
+interface Topic {
+    id: number;
+    name: string;
+    description: string;
+    subject_id: number;
+    week: number;
+}
 
-    dropzones.forEach((zone) => {
-      zone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        zone.classList.add('bg-green-100');
-      });
+export default function ClassDashboard({ params }: { params: { classId: string } }) {
+    const [topics, setTopics] = useState<Topic[]>([]);
+    const [weekTopics, setWeekTopics] = useState<{ [week: string]: Topic[] }>({});
 
-      zone.addEventListener('dragleave', () => {
-        zone.classList.remove('bg-green-100');
-      });
+    useEffect(() => {
+        async function fetchTopics() {
+            const { data, error } = await supabase.from('topics').select('*');
+            if (error) console.error(error);
+            else setTopics(data || []);
+        }
 
-      zone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        zone.classList.remove('bg-green-100');
-        const dragEvent = e as DragEvent;
-        const topic = dragEvent.dataTransfer?.getData('text/plain');
-        const div = document.createElement('div');
-        div.textContent = topic ?? '';
-        div.className = 'p-2 bg-yellow-100 rounded';
-        const weekContainer = zone.querySelector("div[id^='week-']");
-        weekContainer?.appendChild(div);
-      });
-    });
-  }, []);
+        fetchTopics();
+    }, []);
 
-  return (
-    <>
-    <div className="flex flex-row h-screen p-4 space-x-4 bg-gray-100">
-      {/* Topics Sidebar */}
-      <div className="w-1/4 p-4 bg-white rounded shadow">
-        <h2 className="text-lg font-bold mb-2">Available Topics</h2>
-        <div id="topic-list" className="space-y-2">
-          {['Kinematics', 'Dynamics', 'Circular Motion'].map((topic) => (
-            <div
-              key={topic}
-              draggable="true"
-              data-topic={topic}
-              className="p-2 bg-blue-200 rounded cursor-move"
-            >
-              {topic}
+    const handleDrop = (week: string, topic: Topic) => {
+        setWeekTopics((prev) => ({
+            ...prev,
+            [week]: [...(prev[week] || []), topic],
+        }));
+    };
+
+    const allowDrop = (e: React.DragEvent) => e.preventDefault();
+
+    const handleDragStart = (e: React.DragEvent, topic: Topic) => {
+        e.dataTransfer.setData('topic', JSON.stringify(topic));
+    };
+
+    const onDrop = (e: React.DragEvent, week: string) => {
+        const topic: Topic = JSON.parse(e.dataTransfer.getData('topic'));
+        handleDrop(week, topic);
+    };
+    const allDroppedTopics: Topic[] = Object.entries(weekTopics).flatMap(
+        ([week, topicList]) =>
+            topicList.map((topic) => ({
+                ...topic,
+                week: parseInt(week.replace('week-', '')),
+            }))
+    );
+
+    const handleRemoveTopic = (week: string, index: number) => {
+        setWeekTopics((prev) => {
+            const updatedWeek = [...(prev[week] || [])];
+            updatedWeek.splice(index, 1);
+            return {
+                ...prev,
+                [week]: updatedWeek,
+            };
+        });
+    };
+
+    return (
+        <>
+            <div className="flex h-screen p-4 space-x-4 bg-gray-100">
+                {/* Topics Sidebar */}
+                <div className="w-1/4 p-4 bg-white rounded shadow overflow-y-auto">
+                    <h2 className="text-lg font-bold mb-2">Available Topics</h2>
+                    <div id="topic-list" className="space-y-2">
+                        {topics.map((topic) => (
+                            <div
+                                key={topic.id}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, topic)}
+                                className="p-2 bg-blue-200 rounded cursor-move"
+                            >
+                                {topic.name}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Timeline */}
+                <div className="flex-1 p-4 bg-white rounded shadow overflow-y-auto">
+                    <h2 className="text-lg font-bold mb-4">Weekly Timeline</h2>
+                    <div className="space-y-4">
+                        {[1, 2, 3, 4].map((week) => (
+                            <div
+                                key={week}
+                                onDragOver={allowDrop}
+                                onDrop={(e) => onDrop(e, `week-${week}`)}
+                                className="p-4 bg-gray-200 rounded dropzone"
+                            >
+                                <h3 className="font-semibold mb-2">Week {week}</h3>
+                                <div className="min-h-[50px] space-y-2">
+                                    {(weekTopics[`week-${week}`] || []).map((topic, index) => (
+                                        <div key={`${topic.id}-${index}`} className="p-2 bg-yellow-100 rounded flex justify-between items-center">
+                                            <span>{topic.name}</span>
+                                            <button
+                                                className="ml-2 text-red-500 hover:text-red-700 font-bold"
+                                                onClick={() => handleRemoveTopic(`week-${week}`, index)}
+                                                title="Remove topic"
+                                            >
+                                                ×
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+
+                    {/* Topic Flow View */}
+                    <TopicFlowBoard topics={allDroppedTopics} />
+                </div>
+
             </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Timeline */}
-      <div className="flex-1 p-4 bg-white rounded shadow overflow-y-auto">
-        <h2 className="text-lg font-bold mb-4">Weekly Timeline</h2>
-        <div className="space-y-4">
-          {[1, 2, 3].map((week) => (
-            <div
-              key={week}
-              className="p-4 bg-gray-200 rounded dropzone"
-              data-week={week}
-            >
-              <h3 className="font-semibold mb-2">Week {week}</h3>
-              <div className="min-h-[50px] space-y-2" id={`week-${week}`} />
-            </div>
-          ))}
-        </div>
-      </div>
-      
-    </div>
-    <TopicFlow/>
-    </>
-  );
+        </>
+    );
 }

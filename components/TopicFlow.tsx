@@ -1,43 +1,76 @@
-'use client'
+'use client';
 
+import React, { useCallback, useEffect, useState } from 'react';
 import ReactFlow, {
   Background,
   Controls,
   MiniMap,
-  useNodesState,
-  useEdgesState,
   addEdge,
   Connection,
-} from 'reactflow'
-import 'reactflow/dist/style.css'
+  Edge,
+  Node,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 
-const initialNodes = [
-  { id: '1', data: { label: 'Topic A' }, position: { x: 50, y: 50 } },
-  { id: '2', data: { label: 'Topic B' }, position: { x: 250, y: 150 } },
-]
+interface Topic {
+  id: number;
+  name: string;
+  description: string;
+  subject_id: number;
+  week: number;
+}
 
-export default function TopicFlow() {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState([])
+interface TopicFlowBoardProps {
+  topics: Topic[];
+}
 
-  const onConnect = (connection: Connection) => {
-    setEdges((eds) => addEdge(connection, eds))
-  }
+let nodeIdCounter = 1;
+let weekNumberCounter = 0;
+
+export default function TopicFlowBoard({ topics }: TopicFlowBoardProps) {
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
+
+  useEffect(() => {
+    const newNodes: Node[] = topics.map((topic, idx) => ({
+      id: `node-${topic.id}`,
+      data: { label: `${topic.name} (Week ${topic.week})` },
+      position: {
+        x: idx * 150,
+        y: topic.week * 150,
+      },
+      type: 'default',
+    }));
+
+    setNodes(newNodes);
+  }, [topics]);
+
+  useEffect(() => {
+    console.log(nodes);
+    console.log(edges);
+  }, [nodes, edges]);
+
+
+  const onConnect = useCallback(
+    (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
+    []
+  );
+
 
   return (
-    <div className="h-[500px] border mt-4 rounded">
+    <div className="w-full h-full">
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+
         fitView
+      //draggable={true}
       >
         <MiniMap />
         <Controls />
         <Background />
       </ReactFlow>
     </div>
-  )
+  );
 }
