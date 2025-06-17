@@ -8,11 +8,11 @@ import sys
 import os
 
 # Debug: Print current working directory and sys.path
-print("🛠 Current file:", __file__)
-print("🛠 Current working directory:", os.getcwd())
+# print("🛠 Current file:", __file__)
+# print("🛠 Current working directory:", os.getcwd())
 
 kt_models_path = os.path.join(os.path.dirname(__file__), "..", "kt_models")
-print("🛠 Adding to sys.path:", kt_models_path)
+# print("🛠 Adding to sys.path:", kt_models_path)
 
 sys.path.append(kt_models_path)
 
