@@ -14,10 +14,11 @@ interface Question {
     title: string;
     text: string;
     image: string | null;
-    options: Option[];
+    options: { text: string; is_correct: boolean }[];
     difficulty: 0 | 1 | 2;
     institution: string;
     module: string;
+    grade?: number;
 }
 
 
@@ -36,19 +37,30 @@ export default function CreateAssignmentPage() {
     const [institutionFilter, setInstitutionFilter] = useState('');
     const [moduleFilter, setModuleFilter] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [gradeFilter, setGradeFilter] = useState('');
     const [showCustomForm, setShowCustomForm] = useState(false);
     interface Option {
         text: string;
         is_correct: boolean;
     }
 
-    const [newQuestion, setNewQuestion] = useState({
+    const [newQuestion, setNewQuestion] = useState<{
+        title: string;
+        text: string;
+        image: string | null;
+        difficulty: number;
+        institution: string;
+        module: string;
+        grade: number;
+        options: { text: string; is_correct: boolean }[];
+    }>({
         title: '',
         text: '',
-        image: null as File | null,
+        image: null,
         difficulty: 0,
         institution: '',
         module: '',
+        grade: 1,
         options: [{ text: '', is_correct: true }],
     });
 
@@ -84,20 +96,65 @@ export default function CreateAssignmentPage() {
         e.preventDefault();
         setLoading(true);
 
-        // In a real app, you would save this data to your 'assignments' and 'assignment_questions' tables in Supabase.
-        console.log("Creating Assignment:", {
-            classId,
-            title,
-            dueDate,
-            questionIds: Array.from(selectedQuestions)
-        });
+        try {
+            // 1. Get the class UUID from class code
+            const { data: classData, error: classError } = await supabase
+                .from('classes')
+                .select('id')
+                .eq('code', classId) // classId is the 6-digit code in the URL
+                .single();
 
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
+            if (classError || !classData) {
+                alert('Class not found.');
+                setLoading(false);
+                return;
+            }
 
-        alert(`Assignment "${title}" created with ${selectedQuestions.size} questions.`);
-        setLoading(false);
-        router.push(`/teacher/class/${classId}`);
+            const classUuid = classData.id;
+
+            // 2. Insert into assignments
+            const { data: assignmentData, error: assignmentError } = await supabase
+                .from('assignments')
+                .insert({
+                    class_id: classUuid,
+                    title,
+                    due_date: dueDate,
+                })
+                .select('id') // Get the ID of the newly created assignment
+                .single();
+
+            if (assignmentError || !assignmentData) {
+                alert('Failed to create assignment.');
+                setLoading(false);
+                return;
+            }
+
+            const assignmentId = assignmentData.id;
+
+            // 3. Insert into assignment_questions
+            const questionInserts = Array.from(selectedQuestions).map((qid) => ({
+                assignment_id: assignmentId,
+                question_id: qid,
+            }));
+
+            const { error: aqError } = await supabase
+                .from('assignment_questions')
+                .insert(questionInserts);
+
+            if (aqError) {
+                alert('Failed to link questions to assignment.');
+                setLoading(false);
+                return;
+            }
+
+            alert(`Assignment "${title}" created with ${selectedQuestions.size} questions.`);
+            router.push(`/teacher/dashboard`);
+        } catch (err) {
+            console.error(err);
+            alert('An unexpected error occurred.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const filteredQuestions = questionBank.filter((q) => {
@@ -105,7 +162,8 @@ export default function CreateAssignmentPage() {
             (difficultyFilter === '' || q.difficulty === parseInt(difficultyFilter)) &&
             (institutionFilter === '' || q.institution.toLowerCase().includes(institutionFilter.toLowerCase())) &&
             (moduleFilter === '' || q.module.toLowerCase().includes(moduleFilter.toLowerCase())) &&
-            (searchQuery === '' || q.text.toLowerCase().includes(searchQuery.toLowerCase()) || q.title.toLowerCase().includes(searchQuery.toLowerCase()))
+            (searchQuery === '' || q.text.toLowerCase().includes(searchQuery.toLowerCase()) || q.title.toLowerCase().includes(searchQuery.toLowerCase())) &&
+            (gradeFilter === '' || q.grade === Number(gradeFilter))
         );
     });
 
@@ -213,6 +271,17 @@ export default function CreateAssignmentPage() {
                                             value={newQuestion.module}
                                             onChange={(e) => setNewQuestion({ ...newQuestion, module: e.target.value })}
                                         />
+                                        <select
+                                            className="w-full px-3 py-2 border rounded"
+                                            value={newQuestion.grade}
+                                            onChange={e => setNewQuestion({ ...newQuestion, grade: Number(e.target.value) })}
+                                        >
+                                            {Array.from({ length: 12 }, (_, i) => (
+                                                <option key={i + 1} value={i + 1}>
+                                                    Grade {i + 1}
+                                                </option>
+                                            ))}
+                                        </select>
 
                                         {/* Options Input */}
                                         {newQuestion.options.map((opt, idx) => (
@@ -275,7 +344,7 @@ export default function CreateAssignmentPage() {
                                             type="button"
                                             className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
                                             onClick={async () => {
-                                                const { title, text, image, difficulty, institution, module, options } = newQuestion;
+                                                const { title, text, image, difficulty, institution, module, grade, options } = newQuestion;
                                                 if (!title || !text || options.length < 2 || !options.some(o => o.is_correct)) {
                                                     alert('Please fill all fields and ensure at least two options with one marked correct.');
                                                     return;
@@ -288,6 +357,7 @@ export default function CreateAssignmentPage() {
                                                     difficulty,
                                                     institution,
                                                     module,
+                                                    grade,
                                                 });
                                                 if (error) {
                                                     alert('Failed to create question: ' + error.message);
@@ -301,6 +371,7 @@ export default function CreateAssignmentPage() {
                                                         difficulty: 0,
                                                         institution: '',
                                                         module: '',
+                                                        grade: 1,
                                                         options: [{ text: '', is_correct: true }],
                                                     });
                                                 }
@@ -347,6 +418,14 @@ export default function CreateAssignmentPage() {
                                     onChange={(e) => setModuleFilter(e.target.value)}
                                     className="px-3 py-2 border rounded shadow-sm"
                                 />
+                                <select value={gradeFilter} onChange={e => setGradeFilter(e.target.value)} className="px-3 py-2 border rounded shadow-sm">
+                                    <option value="">All Grades</option>
+                                    {Array.from({ length: 12 }, (_, i) => (
+                                        <option key={i + 1} value={i + 1}>
+                                            Grade {i + 1}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
                             <h3 className="text-lg font-medium text-gray-800 mb-2">Select Questions</h3>
                             <div className="h-96 overflow-y-auto border border-gray-200 rounded-md p-3 space-y-2 bg-gray-50">
@@ -362,7 +441,7 @@ export default function CreateAssignmentPage() {
                                         <ul className="list-disc ml-4 text-sm text-gray-700">
                                             {q.options.map((opt, i) => (
                                                 <li key={i}>
-                                                    {opt.text} {opt.isCorrect ? '✅' : ''}
+                                                    {opt.text} {opt.is_correct ? '✅' : ''}
                                                 </li>
                                             ))}
                                         </ul>
