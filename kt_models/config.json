@@ -38,5 +38,10 @@
         "hidden_size": 30,
         "num_attn_heads": 2,
         "method": "PAM"
-    }
+    },
+    "skillbuilder": {
+        "emb_size": 100,
+        "hidden_size": 100
+        }
+
 }
