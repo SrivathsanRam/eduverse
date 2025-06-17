@@ -5,7 +5,7 @@ import json
 from models.dkt import DKT
 
 # === Resolve Paths ===
-ROOT_DIR = os.path.dirname(_file_)
+ROOT_DIR = os.path.dirname(__file__)
 ckpt_dir = os.path.join(ROOT_DIR, "ckpts", "dkt", "ASSIST2009")
 checkpoint_path = os.path.join(ckpt_dir, "model.ckpt")
 model_config_path = os.path.join(ckpt_dir, "model_config.json")
@@ -17,7 +17,8 @@ with open(model_config_path, "r") as f:
 # === Detect num_q from checkpoint ===
 state_dict = torch.load(checkpoint_path, map_location="cpu")
 num_q = state_dict["out_layer.weight"].shape[0]
-print("Detected num_q from checkpoint:", num_q)
+# Debug statement
+# print("Detected num_q from checkpoint:", num_q)
 
 # === Build Model and Load Weights ===
 model = DKT(num_q=num_q, emb_size=config["emb_size"], hidden_size=config["hidden_size"])
