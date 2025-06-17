@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
+import { FaEdit, FaClipboardList, FaChartLine, FaBook } from 'react-icons/fa';
+import Link from 'next/link';
 
 interface Class {
   id: string
@@ -75,10 +77,54 @@ export default function TeacherDashboard() {
       ) : (
         <ul className="mb-6">
           {classes.map((c) => (
-            <li key={c.id} className="mb-2 border p-4 rounded bg-white shadow">
-              <strong>{c.name}</strong> (Level {c.level})<br />
-              {c.description}<br />
-              Class Code: <span className="font-mono">{c.code}</span>
+            <li key={c.id} className="mb-4 border p-4 rounded bg-white shadow">
+              <div className="mb-2">
+                <strong>{c.name}</strong> (Level {c.level})<br />
+                {c.description}<br />
+                Class Code: <span className="font-mono">{c.code}</span>
+              </div>
+
+              <div className="flex space-x-3 mt-2">
+                {/* Edit Flow */}
+                <Link href={`/teacher/dashboard/${c.code}/edit-flow`} passHref>
+                  <button
+                    className="p-2 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition"
+                    title="Edit Flow"
+                  >
+                    <FaEdit size={20} />
+                  </button>
+                </Link>
+
+                {/* Upload Learning Materials */}
+                <Link href={`/teacher/dashboard/${c.code}/learning-materials`} passHref>
+                  <button
+                    className="p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition"
+                    title="Upload Learning Materials"
+                  >
+                    <FaBook size={20} />
+                  </button>
+                </Link>
+
+                {/* Create Assignment */}
+                <Link href={`/teacher/dashboard/${c.code}/create-assignment`} passHref>
+                  <button
+                    className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition"
+                    title="Create Assignment"
+                  >
+                    <FaClipboardList size={20} />
+                  </button>
+                </Link>
+
+                {/* Analytics Dashboard */}
+                <Link href={`/teacher/dashboard/${c.code}/analytics`} passHref>
+                  <button
+                    className="p-2 rounded-full bg-purple-100 text-purple-600 hover:bg-purple-200 transition"
+                    title="Analytics Dashboard"
+                  >
+                    <FaChartLine size={20} />
+                  </button>
+                </Link>
+              </div>
             </li>
           ))}
         </ul>
