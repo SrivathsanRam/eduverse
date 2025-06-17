@@ -146,3 +146,6 @@ SAKT looks like suffering an over-fitting. It seems that other tools to decrease
 - KQN: [Knowledge Query Network for Knowledge Tracing](https://arxiv.org/pdf/1908.02146.pdf)
 - AKT: [Context-Aware Attentive Knowledge Tracing](https://arxiv.org/pdf/2007.12324.pdf)
 - CKT: [Convolutional Knowledge Tracing: Modeling Individualization in Student Learning Process](https://www.researchgate.net/profile/Shen-Shuanghong/publication/343214175_Convolutional_Knowledge_Tracing_Modeling_Individualization_in_Student_Learning_Process/links/600fd43a45851553a06fe85d/Convolutional-Knowledge-Tracing-Modeling-Individualization-in-Student-Learning-Process.pdf)
+
+# How to train 
+<code> python train.py --model_name dkt --dataset_name ASSIST2009 </code>
