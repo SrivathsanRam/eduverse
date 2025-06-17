@@ -63,53 +63,92 @@ def match_seq_len(q_seqs, r_seqs, seq_len, pad_val=-1):
     return proc_q_seqs, proc_r_seqs
 
 
+# def collate_fn(batch, pad_val=-1):
+#     '''
+#         The collate function for torch.utils.data.DataLoader
+
+#         Returns:
+#             q_seqs: the question(KC) sequences with the size of \
+#                 [batch_size, maximum_sequence_length_in_the_batch]
+#             r_seqs: the response sequences with the size of \
+#                 [batch_size, maximum_sequence_length_in_the_batch]
+#             qshft_seqs: the question(KC) sequences which were shifted \
+#                 one step to the right with ths size of \
+#                 [batch_size, maximum_sequence_length_in_the_batch]
+#             rshft_seqs: the response sequences which were shifted \
+#                 one step to the right with ths size of \
+#                 [batch_size, maximum_sequence_length_in_the_batch]
+#             mask_seqs: the mask sequences indicating where \
+#                 the padded entry is with the size of \
+#                 [batch_size, maximum_sequence_length_in_the_batch]
+#     '''
+#     q_seqs = []
+#     r_seqs = []
+#     qshft_seqs = []
+#     rshft_seqs = []
+
+#     for q_seq, r_seq in batch:
+#         q_seqs.append(FloatTensor(q_seq[:-1]))
+#         r_seqs.append(FloatTensor(r_seq[:-1]))
+#         qshft_seqs.append(FloatTensor(q_seq[1:]))
+#         rshft_seqs.append(FloatTensor(r_seq[1:]))
+
+#     q_seqs = pad_sequence(
+#         q_seqs, batch_first=True, padding_value=pad_val
+#     )
+#     r_seqs = pad_sequence(
+#         r_seqs, batch_first=True, padding_value=pad_val
+#     )
+#     qshft_seqs = pad_sequence(
+#         qshft_seqs, batch_first=True, padding_value=pad_val
+#     )
+#     rshft_seqs = pad_sequence(
+#         rshft_seqs, batch_first=True, padding_value=pad_val
+#     )
+
+#     mask_seqs = (q_seqs != pad_val) * (qshft_seqs != pad_val)
+
+#     q_seqs, r_seqs, qshft_seqs, rshft_seqs = \
+#         q_seqs * mask_seqs, r_seqs * mask_seqs, qshft_seqs * mask_seqs, \
+#         rshft_seqs * mask_seqs
+
+#     return q_seqs, r_seqs, qshft_seqs, rshft_seqs, mask_seqs
+
 def collate_fn(batch, pad_val=-1):
     '''
-        The collate function for torch.utils.data.DataLoader
-
-        Returns:
-            q_seqs: the question(KC) sequences with the size of \
-                [batch_size, maximum_sequence_length_in_the_batch]
-            r_seqs: the response sequences with the size of \
-                [batch_size, maximum_sequence_length_in_the_batch]
-            qshft_seqs: the question(KC) sequences which were shifted \
-                one step to the right with ths size of \
-                [batch_size, maximum_sequence_length_in_the_batch]
-            rshft_seqs: the response sequences which were shifted \
-                one step to the right with ths size of \
-                [batch_size, maximum_sequence_length_in_the_batch]
-            mask_seqs: the mask sequences indicating where \
-                the padded entry is with the size of \
-                [batch_size, maximum_sequence_length_in_the_batch]
+    Modified collate_fn to handle 4 input sequences:
+    q_seqs, r_seqs, confidence, difficulty
     '''
-    q_seqs = []
-    r_seqs = []
-    qshft_seqs = []
-    rshft_seqs = []
+    q_seqs, r_seqs = [], []
+    qshft_seqs, rshft_seqs = [], []
+    conf_seqs, diff_seqs = [], []
 
-    for q_seq, r_seq in batch:
-        q_seqs.append(FloatTensor(q_seq[:-1]))
-        r_seqs.append(FloatTensor(r_seq[:-1]))
-        qshft_seqs.append(FloatTensor(q_seq[1:]))
-        rshft_seqs.append(FloatTensor(r_seq[1:]))
+    for q_seq, r_seq, conf_seq, diff_seq in batch:
+        # Drop last token for current, drop first for shifted
+        q_seqs.append(torch.tensor(q_seq[:-1], dtype=torch.float))
+        r_seqs.append(torch.tensor(r_seq[:-1], dtype=torch.float))
+        qshft_seqs.append(torch.tensor(q_seq[1:], dtype=torch.float))
+        rshft_seqs.append(torch.tensor(r_seq[1:], dtype=torch.float))
+        conf_seqs.append(torch.tensor(conf_seq[:-1], dtype=torch.float))
+        diff_seqs.append(torch.tensor(diff_seq[:-1], dtype=torch.float))
 
-    q_seqs = pad_sequence(
-        q_seqs, batch_first=True, padding_value=pad_val
-    )
-    r_seqs = pad_sequence(
-        r_seqs, batch_first=True, padding_value=pad_val
-    )
-    qshft_seqs = pad_sequence(
-        qshft_seqs, batch_first=True, padding_value=pad_val
-    )
-    rshft_seqs = pad_sequence(
-        rshft_seqs, batch_first=True, padding_value=pad_val
-    )
+    # Pad all sequences
+    q_seqs = pad_sequence(q_seqs, batch_first=True, padding_value=pad_val)
+    r_seqs = pad_sequence(r_seqs, batch_first=True, padding_value=pad_val)
+    qshft_seqs = pad_sequence(qshft_seqs, batch_first=True, padding_value=pad_val)
+    rshft_seqs = pad_sequence(rshft_seqs, batch_first=True, padding_value=pad_val)
+    conf_seqs = pad_sequence(conf_seqs, batch_first=True, padding_value=pad_val)
+    diff_seqs = pad_sequence(diff_seqs, batch_first=True, padding_value=pad_val)
 
+    # Create mask only where both q & qshft are valid
     mask_seqs = (q_seqs != pad_val) * (qshft_seqs != pad_val)
 
-    q_seqs, r_seqs, qshft_seqs, rshft_seqs = \
-        q_seqs * mask_seqs, r_seqs * mask_seqs, qshft_seqs * mask_seqs, \
-        rshft_seqs * mask_seqs
+    # Apply mask to input sequences
+    q_seqs *= mask_seqs
+    r_seqs *= mask_seqs
+    qshft_seqs *= mask_seqs
+    rshft_seqs *= mask_seqs
+    conf_seqs *= mask_seqs
+    diff_seqs *= mask_seqs
 
-    return q_seqs, r_seqs, qshft_seqs, rshft_seqs, mask_seqs
+    return q_seqs, r_seqs, qshft_seqs, rshft_seqs, mask_seqs, conf_seqs, diff_seqs
