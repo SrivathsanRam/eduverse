@@ -138,13 +138,14 @@ export default function StudentAssignment() {
   const [wrongStreak, setWrongStreak] = useState(0);
   const [swapped, setSwapped] = useState(false);
   const [functionCorrect, setFunctionCorrect] = useState<boolean[]>([]);
+  const [confidence, setConfidence] = useState<'low' | 'med' | 'high' | null>(null);
 
   const interventionSequence: ('pdf' | 'video' | 'animation')[] = ['pdf', 'video', 'animation'];
 
   const currentQuestion = questions[currentIdx];
 
   const handleAnswerSubmit = () => {
-    if (!currentQuestion || !selectedAnswer) return;
+    if (!currentQuestion || !selectedAnswer || !confidence) return;
     const selectedOption = currentQuestion.options.find(opt => opt.text === selectedAnswer);
     const correct = selectedOption?.is_correct === true;
 
@@ -343,10 +344,29 @@ export default function StudentAssignment() {
           </button>
         ))}
 
+        <div className="mb-4">
+          <label className="block mb-2 font-medium">How confident are you?</label>
+          <div className="flex gap-4">
+            {(['low', 'med', 'high'] as const).map((level) => (
+              <button
+                key={level}
+                type="button"
+                onClick={() => setConfidence(level)}
+                disabled={!!feedback}
+                className={`px-4 py-2 rounded border ${
+                  confidence === level ? 'bg-blue-500 text-white border-blue-700' : 'bg-gray-100 border-gray-300'
+                }`}
+              >
+                {level.charAt(0).toUpperCase() + level.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {!feedback && (
           <button
             onClick={handleAnswerSubmit}
-            disabled={!selectedAnswer}
+            disabled={!selectedAnswer || !confidence}
             className="w-full py-3 bg-blue-600 text-white rounded disabled:opacity-50"
           >
             Submit
