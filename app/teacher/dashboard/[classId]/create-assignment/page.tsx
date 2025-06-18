@@ -18,10 +18,9 @@ interface Question {
     difficulty: 0 | 1 | 2;
     institution: string;
     module: string;
+    topic_node_id: string;
     grade?: number;
 }
-
-
 
 export default function CreateAssignmentPage() {
     const router = useRouter();
@@ -39,6 +38,9 @@ export default function CreateAssignmentPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [gradeFilter, setGradeFilter] = useState('');
     const [showCustomForm, setShowCustomForm] = useState(false);
+    const [topics, setTopics] = useState<{ id: string; name: string }[]>([]);
+    const [topicFilter, setTopicFilter] = useState('');
+
     interface Option {
         text: string;
         is_correct: boolean;
@@ -52,6 +54,7 @@ export default function CreateAssignmentPage() {
         institution: string;
         module: string;
         grade: number;
+        topic_node_id: string; // <-- add this
         options: { text: string; is_correct: boolean }[];
     }>({
         title: '',
@@ -61,9 +64,11 @@ export default function CreateAssignmentPage() {
         institution: '',
         module: '',
         grade: 1,
+        topic_node_id: '', // <-- add this
         options: [{ text: '', is_correct: true }],
     });
 
+    const [assignmentTopicId, setAssignmentTopicId] = useState<string>('');
 
     useEffect(() => {
         const fetchQuestions = async () => {
@@ -80,6 +85,34 @@ export default function CreateAssignmentPage() {
 
         fetchQuestions();
     }, []);
+
+    useEffect(() => {
+        const fetchTopics = async () => {
+            // Get class UUID from class code
+            const { data: classData } = await supabase
+                .from('classes')
+                .select('id')
+                .eq('code', classId)
+                .single();
+            if (!classData) return;
+
+            // Fetch topic_nodes for this class, join with topics table for name
+            const { data, error } = await supabase
+                .from('topic_nodes')
+                .select('id, topics(name)')
+                .eq('class_id', classData.id);
+
+            if (!error && data) {
+                setTopics(
+                    data.map((node: any) => ({
+                        id: node.id,
+                        name: node.topics?.name || 'Unnamed Topic',
+                    }))
+                );
+            }
+        };
+        fetchTopics();
+    }, [classId]);
 
 
     const toggleQuestion = (questionId: string) => {
@@ -119,8 +152,9 @@ export default function CreateAssignmentPage() {
                     class_id: classUuid,
                     title,
                     due_date: dueDate,
+                    topic: assignmentTopicId, // <-- add this
                 })
-                .select('id') // Get the ID of the newly created assignment
+                .select('id')
                 .single();
 
             if (assignmentError || !assignmentData) {
@@ -163,10 +197,10 @@ export default function CreateAssignmentPage() {
             (institutionFilter === '' || q.institution.toLowerCase().includes(institutionFilter.toLowerCase())) &&
             (moduleFilter === '' || q.module.toLowerCase().includes(moduleFilter.toLowerCase())) &&
             (searchQuery === '' || q.text.toLowerCase().includes(searchQuery.toLowerCase()) || q.title.toLowerCase().includes(searchQuery.toLowerCase())) &&
-            (gradeFilter === '' || q.grade === Number(gradeFilter))
+            (gradeFilter === '' || q.grade === Number(gradeFilter)) &&
+            (topicFilter === '' || q.topic_node_id === topicFilter)
         );
     });
-
 
 
 
@@ -193,6 +227,26 @@ export default function CreateAssignmentPage() {
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
                                 />
                             </div>
+
+                            {/* Assignment topic select */}
+                            <div>
+                                <label htmlFor="assignmentTopic" className="block text-sm font-medium text-gray-700">Assignment Topic</label>
+                                <select
+                                    id="assignmentTopic"
+                                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                                    value={assignmentTopicId}
+                                    onChange={e => setAssignmentTopicId(e.target.value)}
+                                    required
+                                >
+                                    <option value="">Select Assignment Topic</option>
+                                    {topics.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                            {t.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
                             <div className="pt-4">
                                 <button
                                     type="submit" disabled={loading || selectedQuestions.size === 0}
@@ -283,6 +337,20 @@ export default function CreateAssignmentPage() {
                                             ))}
                                         </select>
 
+                                        <select
+                                            className="w-full px-3 py-2 border rounded"
+                                            value={newQuestion.topic_node_id}
+                                            onChange={e => setNewQuestion({ ...newQuestion, topic_node_id: e.target.value })}
+                                            required
+                                        >
+                                            <option value="">Select Topic</option>
+                                            {topics.map((t) => (
+                                                <option key={t.id} value={t.id}>
+                                                    {t.name}
+                                                </option>
+                                            ))}
+                                        </select>
+
                                         {/* Options Input */}
                                         {newQuestion.options.map((opt, idx) => (
                                             <div key={idx} className="flex items-center gap-2">
@@ -344,12 +412,16 @@ export default function CreateAssignmentPage() {
                                             type="button"
                                             className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
                                             onClick={async () => {
-                                                const { title, text, image, difficulty, institution, module, grade, options } = newQuestion;
+                                                const { title, text, image, difficulty, institution, module, grade, topic_node_id, options } = newQuestion;
                                                 if (!title || !text || options.length < 2 || !options.some(o => o.is_correct)) {
                                                     alert('Please fill all fields and ensure at least two options with one marked correct.');
                                                     return;
                                                 }
-                                                const { error } = await supabase.from('questions').insert({
+                                                if (!topic_node_id) {
+                                                    alert('Please select a topic.');
+                                                    return;
+                                                }
+                                                const { data, error } = await supabase.from('questions').insert({
                                                     title,
                                                     text,
                                                     image,
@@ -358,7 +430,9 @@ export default function CreateAssignmentPage() {
                                                     institution,
                                                     module,
                                                     grade,
-                                                });
+                                                    topic_node_id,
+                                                }).select('*').single();
+
                                                 if (error) {
                                                     alert('Failed to create question: ' + error.message);
                                                 } else {
@@ -372,8 +446,12 @@ export default function CreateAssignmentPage() {
                                                         institution: '',
                                                         module: '',
                                                         grade: 1,
+                                                        topic_node_id: '',
                                                         options: [{ text: '', is_correct: true }],
                                                     });
+                                                    // Add the new question to the question bank and select it
+                                                    setQuestionBank(prev => [data, ...prev]);
+                                                    setSelectedQuestions(prev => new Set(prev).add(data.id));
                                                 }
                                             }}
                                         >
@@ -418,6 +496,18 @@ export default function CreateAssignmentPage() {
                                     onChange={(e) => setModuleFilter(e.target.value)}
                                     className="px-3 py-2 border rounded shadow-sm"
                                 />
+                                <select
+                                    value={topicFilter}
+                                    onChange={e => setTopicFilter(e.target.value)}
+                                    className="px-3 py-2 border rounded shadow-sm"
+                                >
+                                    <option value="">All Topics</option>
+                                    {topics.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                            {t.name}
+                                        </option>
+                                    ))}
+                                </select>
                                 <select value={gradeFilter} onChange={e => setGradeFilter(e.target.value)} className="px-3 py-2 border rounded shadow-sm">
                                     <option value="">All Grades</option>
                                     {Array.from({ length: 12 }, (_, i) => (

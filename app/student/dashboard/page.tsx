@@ -93,7 +93,7 @@ export default function StudentDashboard() {
                         {classes.map((c) => (
                             <button
                                 key={c.id}
-                                onClick={() => router.push(`/student/class/${c.id}`)}
+                                onClick={() => router.push(`/student/dashboard/${c.code}`)}
                                 className="text-left p-4 rounded-lg bg-white shadow hover:shadow-lg hover:scale-105 transition-transform duration-200"
                             >
                                 <strong className="text-xl text-blue-700">{c.name}</strong>
